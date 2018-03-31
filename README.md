@@ -26,8 +26,11 @@ stack build --fast
 stack exec snap-demo
 ```
 
+You can view the app at [`http://localhost:8000`][view] in your browser.
+
 ## Licence
 
 Released under [MIT License][licence]
 
 [licence]: LICENSE
+[view]: http://localhost:8000
