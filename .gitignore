@@ -1,2 +1,4 @@
 /.stack-work/
 /log/
+/local-auth-secret.txt
+/local-auth.db

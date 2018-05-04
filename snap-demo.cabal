@@ -29,5 +29,8 @@ executable snap-demo
                                             -Werror=missing-methods
                                             -fwarn-unused-imports
   build-depends:                            base >= 4.7 && < 5
+                                          , bytestring
+                                          , codeworld-auth
+                                          , directory
                                           , snap-core
                                           , snap-server

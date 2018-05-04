@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <script src="https://code.jquery.com/jquery-1.12.4.min.js"></script>
+  <script>
+  function isPasswordExpired(resp) {
+    return resp.status == 401 && resp.responseJSON && resp.responseJSON.reason == "password-expired";
+  }
+
+  function isTokenExpired(resp) {
+    return resp.status == 401 && resp.responseJSON && resp.responseJSON.reason == "token-expired";
+  }
+
+  var Http = (() => {
+    const mine = {};
+
+    mine.send = opts => {
+      return new Promise((resolve, reject) => $.ajax(opts)
+        .done((result, status, xhr) => resolve({ result: result, status: status, xhr: xhr }))
+        .fail(reject));
+    };
+    mine.get = opts => mine.send(Object.assign({ method: "GET" }, opts));
+    mine.post = opts => mine.send(Object.assign({ method: "POST" }, opts));
+
+    return mine;
+  })();
+
+  var LocalAuth = (() => {
+    const mine = {};
+
+    var authHeader = null;
+
+    mine.signIn = (userId, password) =>
+      Http.post({ url: "/sign-in", data: { userId: userId, password: password } })
+        .then(resp  => authHeader = resp.xhr.getResponseHeader("Authorization"));
+
+    mine.signInNewPassword = (userId, password, newPassword) =>
+      Http.post({ url: "/sign-in", data: { userId: userId, password: password, newPassword: newPassword } })
+        .then(resp  => authHeader = resp.xhr.getResponseHeader("Authorization"));
+
+    mine.send = opts => {
+      return Http.send(Object.assign({ beforeSend: req => req.setRequestHeader("Authorization", authHeader) }, opts))
+        .then(resp => { authHeader = resp.xhr.getResponseHeader("Authorization"); return resp; })
+        .catch(e => {
+          if (!isTokenExpired(e)) {
+            throw e;
+          }
+
+          alert("Your session has expired: please sign in again!");
+          const userId = prompt("User ID");
+          const password = prompt("Password");
+          return mine.signIn(userId, password).then(() => mine.send(opts));
+        })
+        .catch(e => {
+          switch (e.status) {
+            case 401:
+              authHeader = null;
+              alert("You need to authenticate to call this method.");
+              break;
+
+            case 403:
+              authHeader = null;
+              alert("Access denied!");
+              break;
+
+            default:
+              alert("Operation failed.");
+              break;
+          }
+          throw e;
+        });
+    };
+    mine.get = opts => mine.send(Object.assign({ method: "GET" }, opts));
+    mine.post = opts => mine.send(Object.assign({ method: "POST" }, opts));
+
+    return mine;
+  })();
+
+  $(() => {
+    function signIn() {
+      const userId = $("#user-id").val();
+      const password = $("#password").val();
+      const newPassword = $("#new-password").val();
+      const hasNewPassword = $("#new-password").css("display") != "none";
+
+      const promise = hasNewPassword
+        ? LocalAuth.signInNewPassword(userId, password, newPassword)
+        : LocalAuth.signIn(userId, password);
+
+      promise.then(() => {
+          $("#sign-in-form").toggle(false);
+          $("#sign-out-form").toggle(true);
+          $("#commands").toggle(true);
+        }).catch(e => {
+          if (isPasswordExpired(e)) {
+            alert("You need to reset your password.");
+            $("#new-password").toggle(true);
+          }
+          else {
+            alert("You could not be signed in.");
+          }
+        });
+    }
+
+    function signOut() {
+      $("#sign-in-form").toggle(true);
+      $("#sign-out-form").toggle(false);
+      $("#commands").toggle(false);
+    }
+
+    function command0() {
+      LocalAuth
+        .post({ url: "/command0", data: { x: "100", y: "200", secretToken: window.secretToken } })
+        .then(resp => alert(`result=${JSON.stringify(resp.result)}`));
+    }
+
+    $(document).on("click", "#sign-in", signIn);
+    $(document).on("click", "#sign-out", signOut);
+    $(document).on("click", "#command0", command0);
+  });
+  </script>
+</head>
+<body>
+  <div id="sign-in-form">
+    <input id="user-id" type="text"/><br/>
+    <input id="password" type="password"/><br/>
+    <input id="new-password" type="password" style="display: none"/><br/>
+    <button id="sign-in">Sign in</button>
+  </div>
+  <div id="sign-out-form" style="display: none">
+    <button id="sign-out">Sign out</button>
+  </div>
+  <div id="commands" style="display: none">
+    <button id="command0">Command0</button>
+  </div>
+</body>
+</html>
